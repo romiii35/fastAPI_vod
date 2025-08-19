@@ -1,0 +1,71 @@
+name: CI #CI(continuous integration)
+on:
+#  workflow_dispatch = 내가 github에 들어가서 직 버튼을 눌러서 실행하겠다.
+# pull_request = 매번 pull request가 생성될떄마다 이 script를 실행하겠다.
+  push # 커밋하고, github애 push 할때마 실행을 하겠다.
+
+jobs:
+  static-analysis: #mypy, black, ruff 등 정적 분석
+    runs-on: ubuntu-22.04 #실제 프로덕션에서는 모든 버전을 고정하는 것이 좋다.
+ # 예기치 못하게 버전이 올라가서 장애나는 것을 막기위해(하나의 팁)
+
+    steps:
+      - name: Check out the codes
+        uses: actions/checkout@v2
+
+      - name: Setup python environment
+        id: setup-python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.13"
+
+      - name: Install Poetry
+        run: | # |(pipeline) : 여러줄(multiline)을 쓰고 싶을 필요하다.
+          curl -sSL https://install.python-poetry.org | python3 - --version 1.8.5
+
+      - name: Resister Poetry bin
+        run: echo "${HOME}/.poetry/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: poetry install --no-root
+
+      - name: Run Black
+        run: poetry run black . --check #검사가 잘되었는지 확인
+
+      - name: Run Ruff
+        run:
+          poetry run ruff check --select I --fix
+          poetry run ruff check --fix
+      - name: Run Mypy
+        run: poetry run mypt .
+
+  test : # 전체 테스트 실행
+        # static-analysis와 병렬로 실행
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out the codes
+        uses: actions/checkout@v2
+
+      - name: Setup python environment
+        id: setup-python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.13"
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 - --version 1.8.5
+
+      - name: Register Poetry bin
+        run: echo "${HOME}/.poetry/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: poetry install --no-root
+        # poetry install --only main--no-root 쓰면 안된다.. 왜?? 우리는 pytest를 사용해야하 실행하려 test에 종속성이 필요한데,
+        # only main을 사용하면 빠지기 때문에 쓰게되면 ruff, black, mypy 다 못쓴다.
+
+      - name: Run tests
+        run: |
+          poetry run coverage run -m pytest.
+          poetry run coverage report -m
+          
